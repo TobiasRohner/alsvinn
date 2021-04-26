@@ -14,7 +14,7 @@
 // It is probably a good idea to add version information to the file
 #define SIMULATOR_NAME "3druns"
 #define SIMULATOR_VERSION "0.0.1"
-#define RAW_DATA_GENERATED_BY "alsvinn"
+#define RAW_DATA_GENERATED_BY "azeban"
 /** [simulator_info]*/
 
 // file reading
@@ -173,21 +173,32 @@ alsfvm::volume::VolumePair getSample(const std::string& platform,
     const std::string& equation,
     int sample,
     const std::string& filename,
-    int nx, int ny, int nz) {
+    int nx, int ny, int nz,
+    const std::string& time) {
     auto start = std::chrono::high_resolution_clock::now();
     using namespace alsfvm::io;
     netcdf_raw_ptr file;
 
     NETCDF_SAFE_CALL(nc_open(filename.c_str(), NC_NOWRITE, &file));
 
-    auto conservedVolume = alsfvm::volume::makeConservedVolume(platform, equation, {nx, ny, nz},
-            0);
+    std::vector<std::string> variables;
+    variables.emplace_back("u");
+    if (ny > 1) {
+      variables.emplace_back("v");
+    }
+    if (nz > 1) {
+      variables.emplace_back("w");
+    }
 
-    for (int var = 0; var < conservedVolume->getNumberOfVariables(); ++var) {
-        auto name = conservedVolume->getName(var);
+    auto deviceConfiguration = std::make_shared<alsfvm::DeviceConfiguration>(platform);
+    auto memoryFactory = alsfvm::make_shared<alsfvm::memory::MemoryFactory>(deviceConfiguration);
+    auto conservedVolume = std::make_shared<alsfvm::volume::Volume>(variables, memoryFactory, nx, ny, nz);
+
+    for (int var = 0; var < variables.size(); ++var) {
+        auto name = variables[var];
 
         auto variableName = std::string("sample_") + std::to_string(
-                sample) + "_" + name;
+                sample) + "_time_" + time + "_" + name;
         ALSVINN_LOG(INFO, "Reading " << variableName)
 
         netcdf_raw_ptr varid;
@@ -217,6 +228,15 @@ alsfvm::volume::VolumePair getSample(const std::string& platform,
             NETCDF_SAFE_CALL(
                 nc_inq_dimlen(file, dimensionIds[dim], &dimensionLengths[dim]));
         }
+	if (nx != dimensionLengths[0]) {
+	  THROW("x-dimension does not match: expected " << nx << " got " << dimensionLengths[0]);
+	}
+	if (numberOfDimensions > 1 && ny != dimensionLengths[1]) {
+	  THROW("y-dimension does not match: expected " << ny << " got " << dimensionLengths[1]);
+	}
+	if (numberOfDimensions > 2 && nz != dimensionLengths[2]) {
+	  THROW("z-dimension does not match: expected " << nz << " got " << dimensionLengths[2]);
+	}
 
         size_t totalSize = 1;
 
@@ -242,93 +262,7 @@ alsfvm::volume::VolumePair getSample(const std::string& platform,
 
         }
 
-        if (ny == 1 && nz > 1 || (nx == 1 && (ny > 1 || nz > 1))) {
-            THROW("We assume nx is greater than 1 whenever ny is, and ny is greater than 1 whenever nz is\n given  ("
-                << nx << ", " << ny << ", " << nz << ")")
-        }
-
-        if (dimensionLengths[0] > nx || dimensionLengths[1] > ny
-            || dimensionLengths[2] > nz) {
-            THROW("We do not support downscaling! Given a file with dimensions: ("
-                << dimensionLengths[0] << ", " << dimensionLengths[1] << ", " <<
-                dimensionLengths[2] << "),"
-                << "however, the following was requested ("
-                << nx << ", " << ny << ", " << nz << ")")
-        }
-
-        if ((nx / dimensionLengths[0])*dimensionLengths[0] != nx ||
-            (ny / dimensionLengths[1])*dimensionLengths[1] != ny ||
-            (nz / dimensionLengths[2])*dimensionLengths[2] != nz) {
-            THROW("The requested dimensions are not divisible by the file dimensions, given ("
-                << dimensionLengths[0] << ", " << dimensionLengths[1] << ", " <<
-                dimensionLengths[2] << "),"
-                << "however, the following was requested ("
-                << nx << ", " << ny << ", " << nz << ")")
-        }
-
-
-        if (ny > 1) {
-            if ((ny / dimensionLengths[1]) != (nx / dimensionLengths[0])) {
-                THROW("We only support dimension lengths of the sample multiple ("
-                    << dimensionLengths[0] << ", " << dimensionLengths[1] << ", " <<
-                    dimensionLengths[2] << "),"
-                    << "however, the following was requested ("
-                    << nx << ", " << ny << ", " << nz << ")")
-            }
-
-            if (nz > 1) {
-                if ((nz / dimensionLengths[2]) != (nx / dimensionLengths[0])) {
-                    THROW("We only support dimension lengths of the sample multiple ("
-                        << dimensionLengths[0] << ", " << dimensionLengths[1] << ", " <<
-                        dimensionLengths[2] << "),"
-                        << "however, the following was requested ("
-                        << nx << ", " << ny << ", " << nz << ")")
-                }
-            }
-
-        }
-
-
-        if (dimensionLengths.size() != 3) {
-            THROW("Expected a three dimensional file, got " << dimensionLengths.size() <<
-                " dimensions.");
-        }
-
-        std::vector<::alsfvm::real> bufferFinal (nx * ny * nz);
-
-        for (size_t z = 0; z < dimensionLengths[2]; ++z) {
-            for (size_t y = 0; y < dimensionLengths[1]; ++y) {
-                for (size_t x = 0; x < dimensionLengths[0]; ++x) {
-                    const size_t cellsPerZ = nz / dimensionLengths[2];
-
-                    for (size_t k = 0; k < cellsPerZ; ++k) {
-                        const size_t cellsPerY = ny / dimensionLengths[1];
-
-                        for (size_t j = 0; j < cellsPerY; ++j) {
-                            const size_t cellsPerX = nx / dimensionLengths[0];
-
-                            for (size_t i = 0; i < cellsPerX; ++i) {
-                                const size_t outZ = z * cellsPerZ + k;
-                                const size_t outY = y * cellsPerY + j;
-                                const size_t outX = x * cellsPerX + i;
-
-                                const size_t inputIndex = z * dimensionLengths[1] * dimensionLengths[0]
-                                    + y * dimensionLengths[0] + x;
-
-                                const size_t outputIndex = outZ * nx * ny + outY * nx + outX;
-
-                                bufferFinal[outputIndex] = buffer[inputIndex];
-
-                            }
-
-                        }
-                    }
-                }
-            }
-        }
-
-        conservedVolume->getScalarMemoryArea(var)->copyFromHost(bufferFinal.data(),
-            bufferFinal.size());
+        conservedVolume->getScalarMemoryArea(var)->copyFromHost(buffer.data(), buffer.size());
     }
 
     NETCDF_SAFE_CALL(nc_close(file));
@@ -359,6 +293,7 @@ int main(int argc, char** argv) {
 
     std::string equation;
     int nx, ny, nz;
+    std::string time;
     int numberOfH;
     int p;
     int numberOfSamples;
@@ -383,6 +318,7 @@ int main(int argc, char** argv) {
     ("nx", value<int>(&nx)->required(), "Resolution x direction")
     ("ny", value<int>(&ny)->required(), "Resolution y direction")
     ("nz", value<int>(&nz)->required(), "Resolution z direction")
+    ("time", value<std::string>(&time)->required(), "Timestamp of the sample")
     ("boundary-condition", value<std::string>(&bc)->default_value("periodic"),
         "Boundary condition")
     ("platform", value<std::string>(&platform)->default_value("cpu"),
@@ -483,7 +419,7 @@ int main(int argc, char** argv) {
     for (int sample = sampleStart; sample < sampleEnd; ++sample) {
         auto start = std::chrono::high_resolution_clock::now();
         ALSVINN_LOG(INFO, "sample: " << sample)
-        auto volumes = getSample(platform, equation, sample, filenameInput, nx, ny, nz);
+        auto volumes = getSample(platform, equation, sample, filenameInput, nx, ny, nz, time);
 
         statistics->write(*volumes.getConservedVolume(),
             grid,
