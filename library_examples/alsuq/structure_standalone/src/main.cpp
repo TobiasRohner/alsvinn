@@ -144,28 +144,9 @@ alsuq::stats::StatisticsFactory::StatisticsPointer makeStructureFunction(
 
 
 alsfvm::simulator::TimestepInformation getTimestepInformation(
-    const std::string& filename) {
+    const std::string& timestep) {
 
-    double time = 0;
-    alsfvm::io::netcdf_raw_ptr file;
-    NETCDF_SAFE_CALL(nc_open(filename.c_str(), NC_NOWRITE, &file));
-
-    int variableId = 0;
-    int variableStatus = nc_inq_varid(file, "time", &variableId);
-
-    if (variableStatus == NC_NOERR) {
-        int variableLength = 0;
-
-        nc_type variableType;
-        NETCDF_SAFE_CALL(nc_inq_vartype(file, variableId, &variableType));
-
-        if (variableType == NC_DOUBLE) {
-            NETCDF_SAFE_CALL(nc_get_var_double(file, variableId, &time));
-
-            ALSVINN_LOG(INFO, "Time is " << time)
-        }
-    }
-
+    double time = std::stod(timestep);
     return alsfvm::simulator::TimestepInformation(time, 0);
 }
 
@@ -361,7 +342,7 @@ int main(int argc, char** argv) {
 
 
     const alsfvm::simulator::TimestepInformation timestepInformation =
-        getTimestepInformation(filenameInput);
+        getTimestepInformation(time);
 
     // Output
     const std::string writerType = "netcdf";
