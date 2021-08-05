@@ -17,7 +17,7 @@ ELSE()
 	ENDMACRO()
 ENDIF()
 project (structure_functions LANGUAGES C CXX)
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 
 if (EXISTS "${CMAKE_SOURCE_DIR}/../../../cmake/git_find/GetGitRevisionDescription.cmake")
     list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/../../../cmake/git_find")
@@ -50,5 +50,4 @@ target_link_libraries(structure_standalone
 	Boost::system
 	Boost::chrono
 	Boost::thread
-  
 )

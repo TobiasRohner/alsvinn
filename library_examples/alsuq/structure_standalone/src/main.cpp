@@ -37,6 +37,7 @@ boost::property_tree::ptree getAttributes(const std::string& filename) {
 
     boost::property_tree::ptree attributes;
 
+    /*
     alsfvm::io::netcdf_raw_ptr file;
     NETCDF_SAFE_CALL(nc_open(filename.c_str(), NC_NOWRITE, &file));
 
@@ -78,6 +79,7 @@ boost::property_tree::ptree getAttributes(const std::string& filename) {
     }
 
     NETCDF_SAFE_CALL(nc_close(file));
+    */
     return attributes;
 }
 
@@ -153,13 +155,14 @@ alsfvm::simulator::TimestepInformation getTimestepInformation(
 alsfvm::volume::VolumePair getSample(const std::string& platform,
     const std::string& equation,
     int sample,
-    const std::string& filename,
+    const std::string& sample_folder,
     int nx, int ny, int nz,
     const std::string& time) {
     auto start = std::chrono::high_resolution_clock::now();
     using namespace alsfvm::io;
     netcdf_raw_ptr file;
 
+    const std::string filename = sample_folder + "/sample_" + std::to_string(sample) + "_time_" + time + ".nc";
     NETCDF_SAFE_CALL(nc_open(filename.c_str(), NC_NOWRITE, &file));
 
     std::vector<std::string> variables;
@@ -177,13 +180,10 @@ alsfvm::volume::VolumePair getSample(const std::string& platform,
 
     for (int var = 0; var < variables.size(); ++var) {
         auto name = variables[var];
-
-        auto variableName = std::string("sample_") + std::to_string(
-                sample) + "_time_" + time + "_" + name;
-        ALSVINN_LOG(INFO, "Reading " << variableName)
+        ALSVINN_LOG(INFO, "Reading " << name)
 
         netcdf_raw_ptr varid;
-        NETCDF_SAFE_CALL(nc_inq_varid(file, variableName.c_str(), &varid));
+        NETCDF_SAFE_CALL(nc_inq_varid(file, name.c_str(), &varid));
 
         // nc_inq_typeid does not seem to work, so using this:
         netcdf_raw_ptr netcdftype;
