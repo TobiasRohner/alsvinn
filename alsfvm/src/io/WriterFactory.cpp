@@ -23,19 +23,19 @@ namespace alsfvm {
 namespace io {
 
 alsfvm::shared_ptr<Writer> WriterFactory::createWriter(const std::string& name,
-    const std::string& baseFilename, const parameters::Parameters& parameters) {
+    const std::string& filename, const grid::Grid &grid, size_t num_samples, const std::vector<real> &timesteps, const parameters::Parameters& parameters) {
 
 
     alsfvm::shared_ptr<Writer> writer;
 
     if (name == "hdf5") {
-        writer.reset(new HDF5Writer(baseFilename));
+        writer.reset(new HDF5Writer(filename));
     } else if (name == "netcdf" ) {
-        writer.reset(new NetCDFWriter(baseFilename));
+        writer.reset(new NetCDFWriter(filename, true, grid, num_samples, timesteps));
     } else if (name == "python") {
-        writer.reset(new PythonScript(baseFilename, parameters));
+        writer.reset(new PythonScript(filename, parameters));
     } else if (name == "dll") {
-        writer.reset(new DLLWriter(baseFilename, parameters));
+        writer.reset(new DLLWriter(filename, parameters));
     } else {
         THROW("Unknown writer type " << name);
     }

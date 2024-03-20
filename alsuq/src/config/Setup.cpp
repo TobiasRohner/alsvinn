@@ -49,6 +49,21 @@ namespace config {
 //   </stat>
 // </stats>
 
+namespace {
+template<class T>
+vec3<T> parseVector(const std::string& vectorAsString) {
+    std::vector<std::string> splitString;
+    boost::split(splitString, vectorAsString, boost::is_any_of("\t "));
+
+    T a = boost::lexical_cast<T>(splitString[0]);
+    T b = boost::lexical_cast<T>(splitString[1]);
+    T c = boost::lexical_cast<T>(splitString[2]);
+
+    return vec3<T>(a, b, c);
+
+}
+}
+
 
 std::shared_ptr<run::Runner> Setup::makeRunner(const std::string& inputFilename,
     alsutils::mpi::ConfigurationPtr mpiConfigurationWorld,
@@ -64,6 +79,9 @@ std::shared_ptr<run::Runner> Setup::makeRunner(const std::string& inputFilename,
     auto sampleGenerator = makeSampleGenerator(configuration);
     auto numberOfSamples = readNumberOfSamples(configuration);
     auto sampleStart = readSampleStart(configuration);
+
+    std::cout << "numberOfSamples = " << numberOfSamples << std::endl;
+    std::cout << "sampleStart = " << sampleStart << std::endl;
 
     ALSVINN_LOG(INFO, "sampleStart = " << sampleStart);
 
@@ -88,6 +106,7 @@ std::shared_ptr<run::Runner> Setup::makeRunner(const std::string& inputFilename,
     auto simulatorCreator = std::dynamic_pointer_cast<run::SimulatorCreator>
         (std::make_shared<run::FiniteVolumeSimulatorCreator>
             (inputFilename,
+	     numberOfSamples,
                 spatialConfiguration,
                 statisticalConfiguration,
                 mpiConfigurationWorld,
@@ -98,7 +117,8 @@ std::shared_ptr<run::Runner> Setup::makeRunner(const std::string& inputFilename,
     auto runner = std::make_shared<run::Runner>(simulatorCreator, sampleGenerator,
             samplesForProc,
             statisticalConfiguration, name);
-    auto statistics  = createStatistics(configuration, statisticalConfiguration,
+    const auto grid = createGrid(configuration);
+    auto statistics  = createStatistics(*grid, numberOfSamples, configuration, statisticalConfiguration,
             spatialConfiguration, mpiConfigurationWorld);
     runner->setStatistics(statistics);
 
@@ -220,6 +240,8 @@ std::shared_ptr<samples::SampleGenerator> Setup::makeSampleGenerator(
 //   </stat>
 // </stats>
 std::vector<std::shared_ptr<stats::Statistics> > Setup::createStatistics(
+    const alsfvm::grid::Grid &grid,
+    size_t num_samples,
     Setup::ptree& configuration,
     mpi::ConfigurationPtr statisticalConfiguration,
     mpi::ConfigurationPtr spatialConfiguration,
@@ -254,7 +276,18 @@ std::vector<std::shared_ptr<stats::Statistics> > Setup::createStatistics(
         for (auto statisticsName : statistics->getStatisticsNames()) {
 
             auto outputname = basename + "_" + statisticsName;
-            auto baseWriter = writerFactory->createWriter(type, outputname,
+	    const auto& writerNode = statisticsNode.second.get_child("writer");
+	    size_t numberOfSaves = writerNode.get<size_t>("numberOfSaves");
+	    bool writeInitialTimestep = false;
+	    if (writerNode.find("writeInitialTimestep") != writerNode.not_found()) {
+		writeInitialTimestep = writerNode.get<bool>("writeInitialTimestep");
+	    }
+	    std::vector<real> timesteps(numberOfSaves + writeInitialTimestep);
+	    timesteps[0] = 0;
+	    for (size_t t = 0 ; t < numberOfSaves ; ++t) {
+	      timesteps[t + writeInitialTimestep] = static_cast<real>(t + 1) / numberOfSaves;
+	    }
+            auto baseWriter = writerFactory->createWriter(type, outputname, grid, num_samples, timesteps,
                     alsfvm::io::Parameters(statisticsNode.second.get_child("writer")));
             baseWriter->addAttributes("uqAttributes", configuration);
             statistics->addWriter(statisticsName, baseWriter);
@@ -310,6 +343,25 @@ size_t Setup::readSampleStart(Setup::ptree& configuration) {
     }
 
     return 0;
+}
+
+alsfvm::shared_ptr<alsfvm::grid::Grid> Setup::createGrid(
+    const Setup::ptree& configuration) {
+    const ptree& gridNode =  configuration.get_child("fvm.grid");
+
+    const std::string& lowerCornerString = gridNode.get<std::string>("lowerCorner");
+    const std::string& upperCornerString = gridNode.get<std::string>("upperCorner");
+    const std::string& dimensionString = gridNode.get<std::string>("dimension");
+
+
+    auto lowerCorner = parseVector<real>(lowerCornerString);
+    auto upperCorner = parseVector<real>(upperCornerString);
+    auto dimension = parseVector<int>(dimensionString);
+
+    std::array<alsfvm::boundary::Type, 6> boundaryConditions;
+
+    return alsfvm::make_shared<alsfvm::grid::Grid>(lowerCorner, upperCorner, dimension,
+            boundaryConditions);
 }
 }
 }

@@ -16,7 +16,7 @@
 #include "alsutils/io/TextFileCache.hpp"
 #include "alsutils/error/Exception.hpp"
 #include <fstream>
-#include <boost/filesystem.hpp>
+#include <filesystem>
 #include <streambuf>
 #include <sstream>
 #include <mutex>
@@ -35,7 +35,7 @@ TextFileCache& TextFileCache::getInstance() {
 
 std::string TextFileCache::loadTextFile(const std::string& path) {
     std::lock_guard<std::recursive_mutex> lock(mutex);
-    auto absolutePath = boost::filesystem::absolute(path).string();
+    auto absolutePath = std::filesystem::absolute(path).string();
     auto inMap = loadedTextFiles.find(absolutePath);
 
     if (inMap != loadedTextFiles.end()) {

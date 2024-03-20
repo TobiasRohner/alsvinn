@@ -8,8 +8,8 @@ SET(HUNTER_ROOT ${CMAKE_BINARY_DIR}/hunter_root)
 IF(${ALSVINN_USE_HUNTER})
 	include("cmake/HunterGate.cmake")
 HunterGate(
-    URL "https://github.com/ruslo/hunter/archive/v0.23.163.tar.gz"
-    SHA1 "e4a6bc5a951806f285bb7e09f845a600f7285193"
+    URL "https://github.com/cpp-pm/hunter/archive/v0.23.297.tar.gz"
+    SHA1 "3319fe6a3b08090df7df98dee75134d68e2ef5a3"
     LOCAL
 )
 
@@ -24,11 +24,13 @@ SET(ALSVINN_USE_FLOAT OFF CACHE BOOL "Do all computations with 32 bits
 floating point numbers, instead of 64 bit double precision")
 SET(ALSVINN_USE_CUDA ON CACHE BOOL "Build with CUDA")
 
-set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_CUDA_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CUDA_STANDARD 17)
 
 set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 set(CMAKE_CUDA_STANDARD_REQUIRED TRUE)
+
+
 
 
 if(${ALSVINN_USE_CUDA})
@@ -110,20 +112,48 @@ find_package(Python ${ALSVINN_PYTHON_VERSION} REQUIRED COMPONENTS Development)
 
 # We want to specify python versions, which the cmake filees from boost do not allow us to
 
-set(Boost_NO_BOOST_CMAKE ON)
+#set(Boost_NO_BOOST_CMAKE ON)
 
 if(ALSVINN_USE_HUNTER_FOR_BOOST AND ALSVINN_USE_HUNTER)
-   hunter_add_package(Boost COMPONENTS regex thread system filesystem chrono date_time program_options log python)
+  hunter_add_package(Boost COMPONENTS regex thread system filesystem chrono date_time program_options log python)
    find_package(Boost CONFIG REQUIRED filesystem thread system chrono date_time program_options log log_setup ${ALSVINN_BOOST_PYTHON} ${ALSVINN_BOOST_NUMPY})
 
 else()
     message(STATUS "Not using hunter to build boost")
     find_package(Boost REQUIRED COMPONENTS filesystem thread system chrono date_time program_options log log_setup ${ALSVINN_BOOST_PYTHON} ${ALSVINN_BOOST_NUMPY})
 endif()
+    find_package(Boost REQUIRED COMPONENTS filesystem thread system chrono date_time program_options log log_setup ${ALSVINN_BOOST_PYTHON} ${ALSVINN_BOOST_NUMPY} filesystem)
+    add_compile_options("-DBOOST_NO_CXX11_SCOPED_ENUMS")
+    add_compile_options("-DBOOST_NO_SCOPED_ENUMS")
+    add_compile_options("-DBOOST_ALL_DYN_LINK")
+
+
+include(FetchContent)
+find_package(MPI REQUIRED COMPONENTS C)
+include_directories(${MPI_C_INCLUDE_PATH})
+set(HDF5_PREFER_PARALLEL ON)
+set(BUILD_UTILITIES OFF)
+set(ENABLE_EXAMPLES OFF)
+set(ENABLE_TESTS OFF)
+set(ENABLE_DAP OFF)
+set(ENABLE_HDF5 ON)
+set(HDF5_PARALLEL ON)
+set(ENABLE_NETCDF4 ON)
+set(ENABLE_PNETCDF ON)
+set(ENABLE_PARALLEL4 ON)
+set(ENABLE_PARALLEL ON)
+set(USE_PARALLEL ON)
+FetchContent_Declare(
+  NetCDF
+  GIT_REPOSITORY https://github.com/Unidata/netcdf-c.git
+  GIT_TAG main
+  OVERRIDE_FIND_PACKAGE
+)
+find_package(NetCDF REQUIRED)
 
 find_package (Threads)
 include("cmake/hdf5.cmake")
-include("cmake/netcdf.cmake")
+#include("cmake/netcdf.cmake")
 if (ALSVINN_USE_CUDA)
     include("cmake/cub.cmake")
 endif()
@@ -138,9 +168,6 @@ if(ALSVINN_USE_CUDA)
 	set(CMAKE_CUDA_FLAGS_DEBUG "-G -g -O0 -lineinfo -src-in-ptx -Xptxas --device-debug,-O0")
 	set(ALSVINN_HAVE_CUDA On)
 endif()
-
-
-FIND_PACKAGE(NetCDF REQUIRED)
 
 
 if(ALSVINN_USE_MPI)
@@ -161,7 +188,7 @@ IF(ALSVINN_USE_MPI)
 	add_subdirectory("alsuqcli")
 ENDIF()
 if(ALSVINN_BUILD_TESTS)
-	hunter_add_package(GTest)
+  #hunter_add_package(GTest)
 	find_package(GTest REQUIRED)
 	add_subdirectory("test")
 
@@ -202,7 +229,6 @@ install(FILES
     ${CMAKE_CURRENT_LIST_DIR}/cmake/hdf5.cmake
     ${CMAKE_CURRENT_LIST_DIR}/cmake/mpi.cmake
     ${CMAKE_CURRENT_LIST_DIR}/cmake/cub.cmake
-    ${CMAKE_CURRENT_LIST_DIR}/cmake/Modules/FindNetCDF.cmake
     ${CMAKE_CURRENT_BINARY_DIR}/AlsvinnConfig.cmake
     ${CMAKE_CURRENT_BINARY_DIR}/AlsvinnConfigVersion.cmake
     DESTINATION ${INSTALL_CONFIGDIR}
@@ -220,12 +246,6 @@ configure_file(${CMAKE_CURRENT_LIST_DIR}/cmake/hdf5.cmake
 
 configure_file(${CMAKE_CURRENT_LIST_DIR}/cmake/cub.cmake
     ${CMAKE_CURRENT_BINARY_DIR}/cub.cmake
-    COPYONLY)
-
-
-
-configure_file(${CMAKE_CURRENT_LIST_DIR}/cmake/Modules/FindNetCDF.cmake
-    ${CMAKE_CURRENT_BINARY_DIR}/FindNetCDF.cmake
     COPYONLY)
 
 configure_file(${CMAKE_CURRENT_LIST_DIR}/cmake/mpi.cmake

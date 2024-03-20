@@ -53,8 +53,7 @@ TARGET_LINK_LIBRARIES(alsuq
   MPI::MPI_C
   hdf5::HDF5_C
   Python::Python
-  netcdf::NetCDF4_c
-  netcdf::parallel_NetCDF4_c
+  netCDF::netcdf
   ${CUDA_LIBRARIES})
 
 

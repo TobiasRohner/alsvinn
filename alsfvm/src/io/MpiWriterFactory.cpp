@@ -28,27 +28,31 @@ MpiWriterFactory::MpiWriterFactory(mpi::ConfigurationPtr configuration)
 
 alsfvm::shared_ptr<Writer> MpiWriterFactory::createWriter(
     const std::string& name,
-    const std::string& baseFilename, const io::Parameters& parameters) {
-    alsfvm::shared_ptr<Writer> writer;
+    const std::string& filename,
+    const grid::Grid &grid,
+    size_t num_samples,
+    const std::vector<real> &timesteps,
+    const io::Parameters& parameters) {
+  alsfvm::shared_ptr<Writer> writer;
 
-    auto parameterCopy = parameters;
-    parameterCopy.addIntegerParameter("mpi_rank", configuration->getRank());
-    parameterCopy.addIntegerParameter("mpi_size",
-        configuration->getNumberOfProcesses());
+  auto parameterCopy = parameters;
+  parameterCopy.addIntegerParameter("mpi_rank", configuration->getRank());
+  parameterCopy.addIntegerParameter("mpi_size",
+      configuration->getNumberOfProcesses());
 
-    if (name == "netcdf") {
-        writer.reset(new NetCDFMPIWriter(baseFilename, {""}, 0, true,
-                configuration->getCommunicator(),
-                configuration->getInfo()));
-    } else if (name == "python") {
-        writer.reset(new PythonScript(baseFilename, parameters, configuration));
-    } else if (name == "dll") {
-        writer.reset(new DLLWriter(baseFilename, parameters, configuration));
-    } else {
-        THROW("Unknown writer " << name << std::endl << "Does not have MPI support.");
-    }
+  if (name == "netcdf") {
+      writer.reset(new NetCDFMPIWriter(filename, grid, num_samples, timesteps, {""}, 0, true,
+	      configuration->getCommunicator(),
+	      configuration->getInfo()));
+  } else if (name == "python") {
+      writer.reset(new PythonScript(filename, parameters, configuration));
+  } else if (name == "dll") {
+      writer.reset(new DLLWriter(filename, parameters, configuration));
+  } else {
+      THROW("Unknown writer " << name << std::endl << "Does not have MPI support.");
+  }
 
-    return writer;
+  return writer;
 }
 
 }

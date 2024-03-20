@@ -59,7 +59,7 @@ protected:
     real readCFLNumber(const ptree& configuration);
     std::string readIntegrator(const ptree& configuration);
 
-    alsfvm::shared_ptr<io::Writer> createWriter(const ptree& configuration);
+    alsfvm::shared_ptr<io::Writer> createWriter(const grid::Grid &grid, size_t num_samples, const ptree& configuration);
     std::string readPlatform(const ptree& configuration);
     std::string readBoundary(const ptree& configuration);
     init::Parameters readParameters(const ptree& configuration);
@@ -72,7 +72,7 @@ protected:
         volume::VolumeFactory& volumeFactory);
 
     std::string readName(const ptree& configuration);
-    std::vector<io::WriterPointer> createFunctionals(const ptree& configuration,
+    std::vector<io::WriterPointer> createFunctionals(const grid::Grid &grid, size_t num_samples, const ptree& configuration,
         volume::VolumeFactory& volumeFactory);
     void readEquationParameters(const ptree& configuration,
         simulator::SimulatorParameters& parameters);

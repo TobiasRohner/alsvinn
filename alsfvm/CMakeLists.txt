@@ -85,8 +85,7 @@ target_link_libraries(alsfvm
   Python::Python
   ${CUDA_LIBRARIES}
   ${OpenMP_CXX_LIB_NAMES}
-  netcdf::NetCDF4_c
-  netcdf::parallel_NetCDF4_c
+  netCDF::netcdf
   PRIVATE
   FBM::fbm
   FBM::fbmpy)

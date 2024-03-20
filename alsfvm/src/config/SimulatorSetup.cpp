@@ -29,7 +29,7 @@
 #include "alsfvm/functional/IntervalFunctionalWriter.hpp"
 #include <boost/property_tree/xml_parser.hpp>
 #include "alsfvm/init/PythonInitialData.hpp"
-#include <boost/filesystem.hpp>
+#include <filesystem>
 #include "alsfvm/equation/euler/EulerParameters.hpp"
 #include "alsfvm/diffusion/DiffusionFactory.hpp"
 #include "alsfvm/functional/FunctionalFactory.hpp"
@@ -102,11 +102,11 @@ void readAllEquationParameters(const boost::property_tree::ptree&
 std::pair<alsfvm::shared_ptr<simulator::Simulator>,
     alsfvm::shared_ptr<init::InitialData> > SimulatorSetup::readSetupFromFile(
 const std::string& filename) {
-    if (!boost::filesystem::exists(filename)) {
+    if (!std::filesystem::exists(filename)) {
         THROW("Input file does not exist\n" << filename );
     }
 
-    basePath = boost::filesystem::path(boost::filesystem::absolute(
+    basePath = std::filesystem::path(std::filesystem::absolute(
                 filename)).parent_path().string();
     auto& textCache = alsutils::io::TextFileCache::getInstance();
     std::stringstream file(textCache.loadTextFile(filename));
@@ -156,7 +156,8 @@ const std::string& filename) {
 
     auto integrator = readIntegrator(configuration);
     auto initialData = createInitialData(configuration);
-    auto writer = createWriter(configuration);
+    size_t num_samples = configuration.get<size_t>("uq.samples");
+    auto writer = createWriter(*grid, num_samples, configuration);
 
     auto platform = readPlatform(configuration);
     auto deviceConfiguration = alsfvm::make_shared<DeviceConfiguration>(platform);
@@ -207,7 +208,7 @@ const std::string& filename) {
         simulator->addWriter(writer);
     }
 
-    auto functionals = createFunctionals(configuration, *volumeFactory);
+    auto functionals = createFunctionals(*grid, num_samples, configuration, *volumeFactory);
 
     for (auto functional : functionals) {
         simulator->addWriter(functional);
@@ -354,29 +355,37 @@ alsfvm::shared_ptr<init::InitialData> SimulatorSetup::createInitialData(
 }
 
 alsfvm::shared_ptr<io::Writer> SimulatorSetup::createWriter(
+    const grid::Grid &grid,
+    size_t num_samples,
     const SimulatorSetup::ptree& configuration) {
     auto fvmNode  = configuration.get_child("fvm");
 
     if (fvmNode.find("writer") != fvmNode.not_found()) {
 
-        std::string type = configuration.get<std::string>("fvm.writer.type");
-        std::string basename = configuration.get<std::string>("fvm.writer.basename");
+        const auto& writerNode = configuration.get_child("fvm.writer");
+        std::string type = writerNode.get<std::string>("type");
+        std::string basename = writerNode.get<std::string>("basename");
+	size_t numberOfSaves = writerNode.get<size_t>("numberOfSaves");
+	bool writeInitialTimestep = false;
+	if (writerNode.find("writeInitialTimestep") != writerNode.not_found()) {
+	    writeInitialTimestep = writerNode.get<bool>("writeInitialTimestep");
+	}
+	std::vector<real> timesteps(numberOfSaves + writeInitialTimestep);
+	timesteps[0] = 0;
+	for (size_t t = 0 ; t < numberOfSaves ; ++t) {
+	  timesteps[t + writeInitialTimestep] = static_cast<real>(t + 1) / numberOfSaves;
+	}
         auto baseWriter = writerFactory->createWriter(type, basename,
+		grid, num_samples, timesteps,
                 io::Parameters(fvmNode.get_child("writer")));
         baseWriter->addAttributes("fvm_configuration", configuration);
         ALSVINN_LOG(INFO, "Adding writer " << basename);
-        const auto& writerNode = configuration.get_child("fvm.writer");
 
         if ( writerNode.find("numberOfSaves") != writerNode.not_found() ) {
-            size_t numberOfSaves = writerNode.get<size_t>("numberOfSaves");
             real endTime = readEndTime(configuration);
             real timeInterval = endTime / numberOfSaves;
 
-            bool writeInitialTimestep = false;
 
-            if (writerNode.find("writeInitialTimestep") != writerNode.not_found()) {
-                writeInitialTimestep = writerNode.get<bool>("writeInitialTimestep");
-            }
 
             if (writerNode.find("numberOfCoarseSaves") != writerNode.not_found()) {
                 int numberOfCoarseSaves = writerNode.get<size_t>("numberOfCoarseSaves");
@@ -543,6 +552,8 @@ std::string SimulatorSetup::readName(const SimulatorSetup::ptree&
 }
 
 std::vector<io::WriterPointer> SimulatorSetup::createFunctionals(
+    const grid::Grid &grid,
+    size_t num_samples,
     const SimulatorSetup::ptree& configuration,
     volume::VolumeFactory& volumeFactory) {
 
@@ -574,8 +585,19 @@ std::vector<io::WriterPointer> SimulatorSetup::createFunctionals(
                 functional.second.get<std::string>("writer.type");
             const std::string writerBasename =
                 functional.second.get<std::string>("writer.basename");
+	    size_t numberOfSaves = functional.second.get<size_t>("writer.numberOfSaves");
+	    bool writeInitialTimestep = false;
+	    if (functional.second.find("writer.writeInitialTimestep") != functional.second.not_found()) {
+		writeInitialTimestep = functional.second.get<bool>("writer.writeInitialTimestep");
+	    }
+	    std::vector<real> timesteps(numberOfSaves + writeInitialTimestep);
+	    timesteps[0] = 0;
+	    for (size_t t = 0 ; t < numberOfSaves ; ++t) {
+	      timesteps[t + writeInitialTimestep] = static_cast<real>(t + 1) / numberOfSaves;
+	    }
 
             auto writer = writerFactory->createWriter(writerType, writerBasename,
+		    grid, num_samples, timesteps,
                     io::Parameters(functional.second.get_child("writer")));
             functional::Functional::Parameters parameters(functional.second);
 

@@ -28,17 +28,19 @@
 namespace alsfvm {
 namespace io {
 
-NetCDFMPIWriter::NetCDFMPIWriter(const std::string& basefileName,
+NetCDFMPIWriter::NetCDFMPIWriter(const std::string& filename,
+    const grid::Grid &grid,
+    size_t num_samples,
+    const std::vector<real> &timesteps,
     const std::vector<std::string>& groupNames,
     size_t groupIndex, bool newFile,
     MPI_Comm mpiCommunicator, MPI_Info mpiInfo)
-    : NetCDFWriter(basefileName),
+    : NetCDFWriter(filename, newFile, grid, num_samples, timesteps),
       groupNames(groupNames),
       groupIndex(groupIndex),
       newFile(newFile),
       mpiCommunicator(mpiCommunicator),
       mpiInfo(mpiInfo) {
-
 }
 
 void NetCDFMPIWriter::write(const volume::Volume& conservedVariables,
@@ -46,189 +48,55 @@ void NetCDFMPIWriter::write(const volume::Volume& conservedVariables,
     const simulator::TimestepInformation& timestepInformation) {
 
     ALSVINN_TIME_BLOCK(alsvinn, fvm, io, netcdf);
-    netcdf_raw_ptr file;
-    auto filename = getFilename();
-    netcdf_raw_ptr timeVar;
 
-
-    if (newFile) {
-        ALSVINN_LOG(INFO, "NetCDFMPIWriter: Writing to new file " << filename <<
-            std::endl);
-        NETCDF_SAFE_CALL(ncmpi_create(mpiCommunicator, filename.c_str(),
-                NC_CLOBBER | NC_64BIT_DATA,
-                mpiInfo, &file));
-
-
-        parallelNetcdfWriteReport(file);
-
-        for (auto attribute : attributesMap) {
-            parallelNetcdfWriteAttributes(file, attribute.first, attribute.second);
-        }
-
-        // write current time
-        netcdf_raw_ptr timeDim;
-        NETCDF_SAFE_CALL(ncmpi_def_dim(file, "t", 1, &timeDim));
-
-
-        NETCDF_SAFE_CALL(ncmpi_def_var(file, "time", NC_DOUBLE, 1, &timeDim,
-                &timeVar));
-
-
-
-    } else {
-        ALSVINN_LOG(INFO, "NetCDFMPIWriter: Writing to old file " << filename <<
-            std::endl);
-        NETCDF_SAFE_CALL(ncmpi_open(mpiCommunicator, filename.c_str(),
-                NC_WRITE | NC_64BIT_DATA,
-                mpiInfo, &file));
-        NETCDF_SAFE_CALL(ncmpi_redef(file));
-    }
-
-    writeToFile(file, conservedVariables,
-        grid, timestepInformation, newFile);
-
-    if (newFile) {
-
-        double currentTime = timestepInformation.getCurrentTime();
-        NETCDF_SAFE_CALL(ncmpi_put_var_double_all(file, timeVar, &currentTime));
-
-    }
-
-    NETCDF_SAFE_CALL(ncmpi_close(file));
-}
-
-NetCDFMPIWriter::dimension_vector NetCDFMPIWriter::createDimensions(
-    netcdf_raw_ptr baseGroup, const grid::Grid& grid, bool newFile) {
-    std::array<netcdf_raw_ptr, 3> dimensions;
-    netcdf_raw_ptr xdim, ydim, zdim;
-
-    if (newFile) {
-        ALSVINN_LOG(INFO, "Making new file with sizes " << grid.getGlobalSize());
-        NETCDF_SAFE_CALL(ncmpi_def_dim(baseGroup, "x", grid.getGlobalSize()[0],
-                &xdim));
-        NETCDF_SAFE_CALL(ncmpi_def_dim(baseGroup, "y", grid.getGlobalSize()[1],
-                &ydim));
-        NETCDF_SAFE_CALL(ncmpi_def_dim(baseGroup, "z", grid.getGlobalSize()[2],
-                &zdim));
-    } else {
-        NETCDF_SAFE_CALL(ncmpi_inq_dimid(baseGroup, "x", &xdim));
-        NETCDF_SAFE_CALL(ncmpi_inq_dimid(baseGroup, "y", &ydim));
-        NETCDF_SAFE_CALL(ncmpi_inq_dimid(baseGroup, "z", &zdim));
-    }
-
-    dimensions[0] = xdim;
-    dimensions[1] = ydim;
-    dimensions[2] = zdim;
-
-    return dimensions;
-}
-
-std::vector<netcdf_raw_ptr> NetCDFMPIWriter::makeDataset(
-    netcdf_raw_ptr baseGroup,
-    const volume::Volume& volume,
-    std::array<netcdf_raw_ptr, 3> dimensions) {
-    std::vector<netcdf_raw_ptr> datasets;
-
-
-    for (const auto& groupName : groupNames) {
-
-        for (size_t memoryIndex = 0; memoryIndex < volume.getNumberOfVariables();
-            ++memoryIndex) {
-            netcdf_raw_ptr dataset;
-
-            std::string groupnamePrefix = "";
-
-            if (groupName.size() > 0) {
-                groupnamePrefix = groupName + "_";
-            }
-
-            auto memoryName = groupnamePrefix + volume.getName(memoryIndex) ;
-
-
-            NETCDF_SAFE_CALL(ncmpi_def_var(baseGroup, memoryName.c_str(),
-                    getNetcdfRealType(), 3,
-                    dimensions.data(), &dataset));
-
-            if (groupName == groupNames[groupIndex]) {
-                datasets.push_back(dataset);
-            }
-        }
-
-    }
-
-    return datasets;
-}
-
-void NetCDFMPIWriter::writeToFile(netcdf_raw_ptr file,
-    const volume::Volume& conservedVariables,
-    const grid::Grid& grid,
-    const simulator::TimestepInformation& timestepInformation,
-    bool newFile) {
-
-
-    auto dimensions = createDimensions(file, grid, newFile);
-
-
-    auto datasetsConserved = makeDataset(file, conservedVariables, dimensions);
-
-    NETCDF_SAFE_CALL(ncmpi_enddef(file));
-    writeVolume(file, conservedVariables, dimensions, datasetsConserved, grid);
-
-}
-
-void NetCDFMPIWriter::writeMemory(netcdf_raw_ptr baseGroup,
-    netcdf_raw_ptr dataset,
-    const volume::Volume& volume,
-    size_t memoryIndex,
-    const grid::Grid& grid) {
-    std::vector<real> dataTmp(volume.getNumberOfXCells() *
-        volume.getNumberOfYCells() * volume.getNumberOfZCells());
-
-    //auto volumeCPU = const_cast<volume::Volume&>(volume).getCopyOnCPU();
-    volume.copyInternalCells(memoryIndex, dataTmp.data(), dataTmp.size());
-
-    std::vector<::alsfvm::io::NetCDFType<real>::type> data(dataTmp.size());
-    std::copy(dataTmp.begin(), dataTmp.end(), data.begin());
-
+    const size_t sampleIdx = std::stoll(&groupNames[0][7]);
 
     auto globalPosition = alsutils::mpi::to_mpi_offset(grid.getGlobalPosition());
     auto localSize = alsutils::mpi::to_mpi_offset(grid.getDimensions());
-
-    // we need to exhcange the order since netcdf uses y major.
     if (grid.getActiveDimension() == 2) {
         std::swap(globalPosition[0], globalPosition[1]);
         std::swap(localSize[0], localSize[1]);
     }
-
-    // we need to exhcange the order since netcdf uses z major.
     if (grid.getActiveDimension() == 3) {
         std::swap(globalPosition[0], globalPosition[2]);
         std::swap(localSize[0], localSize[2]);
-
-        //std::swap(globalPosition[2], globalPosition[1]);
-        //std::swap(localSize[2], localSize[1]);
-
-
     }
 
-    NETCDF_SAFE_CALL(::alsfvm::io::ncmpi_put_vara_real_all(baseGroup, dataset,
-            globalPosition.data(),
-            localSize.data(),
-            data.data()));
-}
-
-void NetCDFMPIWriter::writeVolume(netcdf_raw_ptr baseGroup,
-    const volume::Volume& volume, std::array<netcdf_raw_ptr, 3> dimensions,
-    const std::vector<netcdf_raw_ptr>& datasets,
-    const grid::Grid& grid) {
-    for (size_t memoryIndex = 0; memoryIndex < volume.getNumberOfVariables();
-        ++memoryIndex) {
-        auto dataset = datasets[memoryIndex];
-
-        writeMemory(baseGroup, dataset, volume, memoryIndex, grid);
+    size_t start[5];
+    size_t count[5];
+    start[0] = sampleIdx;
+    count[0] = 1;
+    start[1] = snapshotNumber;
+    count[1] = 1;
+    start[2] = globalPosition[0];
+    count[2] = localSize[0];
+    start[3] = globalPosition[1];
+    count[3] = localSize[1];
+    start[4] = globalPosition[2];
+    count[4] = localSize[2];
+    std::cout << "start = {" << start[0] << ", " << start[1] << ", " << start[2] << ", " << start[3] << ", " << start[4] << "}" << std::endl;
+    std::cout << "count = {" << count[0] << ", " << count[1] << ", " << count[2] << ", " << count[3] << ", " << count[4] << "}" << std::endl;
+    const size_t slice_size = localSize[0] * localSize[1] * localSize[2];
+    std::vector<real> dataTmp(slice_size);
+    conservedVariables.copyInternalCells(0, dataTmp.data(), dataTmp.size());
+    NETCDF_SAFE_CALL(
+	nc_put_vara(ncid_, varids_[0], start, count, dataTmp.data()));
+    conservedVariables.copyInternalCells(conservedVariables.getNumberOfVariables() - 1, dataTmp.data(), dataTmp.size());
+    NETCDF_SAFE_CALL(
+	nc_put_vara(ncid_, varids_[1], start, count, dataTmp.data()));
+    conservedVariables.copyInternalCells(1, dataTmp.data(), dataTmp.size());
+    NETCDF_SAFE_CALL(
+	nc_put_vara(ncid_, varids_[2], start, count, dataTmp.data()));
+    conservedVariables.copyInternalCells(2, dataTmp.data(), dataTmp.size());
+    NETCDF_SAFE_CALL(
+	nc_put_vara(ncid_, varids_[3], start, count, dataTmp.data()));
+    if (conservedVariables.getNumberOfVariables() == 5) {
+      conservedVariables.copyInternalCells(3, dataTmp.data(), dataTmp.size());
+      NETCDF_SAFE_CALL(
+	  nc_put_vara(ncid_, varids_[4], start, count, dataTmp.data()));
     }
+    ++snapshotNumber;
 }
-
 
 }
 }

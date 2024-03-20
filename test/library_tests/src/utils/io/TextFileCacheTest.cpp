@@ -15,7 +15,7 @@
 
 #include <gtest/gtest.h>
 #include "alsutils/io/TextFileCache.hpp"
-#include <boost/filesystem.hpp>
+#include <filesystem>
 #include <fstream>
 #include <streambuf>
 
@@ -52,7 +52,7 @@ TEST(TextFileCacheTest, TestGetLoadedFiles) {
         bool found = false;
 
         for (auto loadedFilename : instance.getAllLoadedFiles()) {
-            if (loadedFilename == boost::filesystem::absolute(filename)) {
+            if (loadedFilename == std::filesystem::absolute(filename)) {
                 found = true;
             }
         }

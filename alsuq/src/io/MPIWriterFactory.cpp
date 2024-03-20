@@ -39,7 +39,10 @@ MPIWriterFactory::MPIWriterFactory(const std::vector<std::string>& groupNames,
 
 alsfvm::shared_ptr<alsfvm::io::Writer> MPIWriterFactory::createWriter(
     const std::string& name,
-    const std::string& baseFilename,
+    const std::string& filename,
+    const alsfvm::grid::Grid &grid,
+    size_t num_samples,
+    const std::vector<alsutils::real> &timesteps,
     const alsutils::parameters::Parameters& parameters) {
 
     mpi::ConfigurationPtr configuration = std::make_shared<mpi::Configuration>
@@ -55,23 +58,23 @@ alsfvm::shared_ptr<alsfvm::io::Writer> MPIWriterFactory::createWriter(
 
     if (name == "hdf5") {
 #ifdef ALSVINN_HAS_PARALLEL_HDF
-        writer.reset(new alsfvm::io::HDF5MPIWriter(baseFilename, groupNames,
+        writer.reset(new alsfvm::io::HDF5MPIWriter(filename, groupNames,
                 groupIndex, createFile, mpiCommunicator,
                 mpiInfo));
 #else
         THROW("Parallel HDF5 not supported in this build, use NetCDF instead (<type>netcdf</type>)");
 #endif
     } else if (name == "netcdf") {
-        writer.reset(new alsfvm::io::NetCDFMPIWriter(baseFilename, groupNames,
+        writer.reset(new alsfvm::io::NetCDFMPIWriter(filename, grid, num_samples, timesteps, groupNames,
                 groupIndex, createFile, mpiCommunicator,
                 mpiInfo));
 
     } else if (name == "python") {
-        writer.reset(new alsfvm::io::PythonScript(baseFilename, parameterCopy,
+        writer.reset(new alsfvm::io::PythonScript(filename, parameterCopy,
                 configuration));
 
     } else if (name == "dll") {
-        writer.reset(new alsfvm::io::DLLWriter(baseFilename, parameterCopy,
+        writer.reset(new alsfvm::io::DLLWriter(filename, parameterCopy,
                 configuration));
     } else {
         THROW("Unknown writer " << name);

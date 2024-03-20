@@ -58,12 +58,15 @@ private:
         ptree& configuration);
 
     std::vector<std::shared_ptr<stats::Statistics> > createStatistics(
+	const alsfvm::grid::Grid &grid,
+	size_t num_samples,
         ptree& configuration,
         alsutils::mpi::ConfigurationPtr statisticalConfiguration,
         mpi::ConfigurationPtr spatialConfiguration,
         mpi::ConfigurationPtr worldConfiguration);
     size_t readNumberOfSamples(ptree& configuration);
     size_t readSampleStart(ptree& configuration);
+    alsfvm::shared_ptr<alsfvm::grid::Grid> createGrid(const ptree& configuration);
 };
 } // namespace config
 } // namespace alsuq

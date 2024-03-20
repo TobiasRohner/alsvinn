@@ -24,6 +24,7 @@ namespace run {
 
 FiniteVolumeSimulatorCreator::FiniteVolumeSimulatorCreator(
     const std::string& configurationFile,
+    size_t numberOfSamples,
     mpi::ConfigurationPtr mpiConfigurationSpatial,
     mpi::ConfigurationPtr mpiConfigurationStatistical,
     alsutils::mpi::ConfigurationPtr mpiConfigurationWorld,

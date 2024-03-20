@@ -28,7 +28,7 @@ public:
     MpiWriterFactory(mpi::ConfigurationPtr configuration);
 
     virtual alsfvm::shared_ptr<Writer> createWriter(const std::string& name,
-        const std::string& baseFilename, const Parameters& parameters) override;
+        const std::string& filename, const grid::Grid &grid, size_t num_samples, const std::vector<real> &timesteps, const Parameters& parameters) override;
 
 private:
     mpi::ConfigurationPtr configuration;

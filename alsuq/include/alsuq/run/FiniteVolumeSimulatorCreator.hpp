@@ -29,6 +29,7 @@ namespace run {
 class FiniteVolumeSimulatorCreator : public SimulatorCreator {
 public:
     FiniteVolumeSimulatorCreator(const std::string& configurationFile,
+	size_t numberOfSamples,
         mpi::ConfigurationPtr mpiConfigurationSpatial,
         mpi::ConfigurationPtr mpiConfigurationStatistical,
         mpi::ConfigurationPtr mpiConfigurationWorld,

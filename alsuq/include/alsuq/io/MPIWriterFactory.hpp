@@ -30,7 +30,8 @@ public:
 
 
     alsfvm::shared_ptr<alsfvm::io::Writer>
-    createWriter(const std::string& name, const std::string& baseFilename,
+    createWriter(const std::string& name, const std::string& filename,
+	const alsfvm::grid::Grid &grid, size_t num_samples, const std::vector<alsutils::real> &timesteps,
         const alsfvm::io::Parameters& parameters) override;
 
 private:
