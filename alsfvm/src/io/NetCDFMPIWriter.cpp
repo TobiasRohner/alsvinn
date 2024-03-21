@@ -49,7 +49,9 @@ void NetCDFMPIWriter::write(const volume::Volume& conservedVariables,
 
     ALSVINN_TIME_BLOCK(alsvinn, fvm, io, netcdf);
 
-    const size_t sampleIdx = std::stoll(&groupNames[0][7]);
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    const size_t sampleIdx = std::stoll(&groupNames[rank][7]);
 
     auto globalPosition = alsutils::mpi::to_mpi_offset(grid.getGlobalPosition());
     auto localSize = alsutils::mpi::to_mpi_offset(grid.getDimensions());
