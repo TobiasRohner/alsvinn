@@ -4,7 +4,7 @@ INCLUDE(ExternalProject)
 
 ExternalProject_Add(
     CUB
-    URL "https://github.com/NVlabs/cub/archive/v1.8.0.zip"
+    URL "https://github.com/NVIDIA/cccl/archive/refs/tags/v2.8.0.zip"
     SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/CUB
     CONFIGURE_COMMAND ""
     BUILD_COMMAND ""

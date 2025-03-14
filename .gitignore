@@ -266,3 +266,5 @@ install_manifest.txt
 quasimodo.sh
 rsync.exclude
 rsync.include
+
+alsvinn.sqsh

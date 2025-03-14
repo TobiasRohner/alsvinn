@@ -30,6 +30,7 @@
 #include <boost/algorithm/string.hpp>
 #include "alsutils/log.hpp"
 #include "alsutils/timer/Timer.hpp"
+#include <boost/lexical_cast.hpp>
 
 namespace alsuq {
 namespace config {

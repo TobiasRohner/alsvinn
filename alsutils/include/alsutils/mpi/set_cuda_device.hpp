@@ -16,7 +16,7 @@
 #pragma once
 #include "alsutils/config.hpp"
 #ifdef ALSVINN_HAVE_CUDA
-#define ENV_LOCAL_RANK "OMPI_COMM_WORLD_LOCAL_RANK"
+#define ENV_LOCAL_RANK "SLURM_LOCALID"
 #include <cuda_runtime.h>
 #include "alsutils/log.hpp"
 #include "alsutils/cuda/cuda_safe_call.hpp"

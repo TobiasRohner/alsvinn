@@ -31,20 +31,20 @@ DLLDistribution::DLLDistribution(size_t numberOfSamples, size_t dimension,
     auto makeParametersName = parameters.getString("make_parameters_function");
 
     if (boost::algorithm::to_lower_copy(makeParametersName) != "none") {
-        auto makeParametersFunction = boost::dll::import <void* ()>(filename,
+        auto makeParametersFunction = boost::dll::import_symbol <void* ()>(filename,
                 makeParametersName);
         parametersStruct = makeParametersFunction();
 
         auto setParameterFunctionName = parameters.getString("set_parameter_function");
 
-        auto setParameterFunction = boost::dll::import
+        auto setParameterFunction = boost::dll::import_symbol
             <void(void*, const char*, const char*)>(filename,
                 setParameterFunctionName);
 
         auto deleteParametersFunctionName =
             parameters.getString("delete_parameters_function");
 
-        deleteParametersFunction = boost::dll::import
+        deleteParametersFunction = boost::dll::import_symbol
             <void(void*)>(filename,
                 deleteParametersFunctionName);
 
@@ -73,19 +73,19 @@ DLLDistribution::DLLDistribution(size_t numberOfSamples, size_t dimension,
     }
 
     if (boost::algorithm::to_lower_copy(createFunctionName) != "none") {
-        auto createFunction = boost::dll::import<void* (int, int, void*)>(filename,
+        auto createFunction = boost::dll::import_symbol<void* (int, int, void*)>(filename,
                 createFunctionName);
         dllData = createFunction(size, dimension, parametersStruct);
 
         auto deleteFunctionName = parameters.getString("delete_function");
 
         if (boost::algorithm::to_lower_copy(deleteFunctionName) != "none") {
-            deleteFunction = boost::dll::import<void(void*)>(filename, deleteFunctionName);
+            deleteFunction = boost::dll::import_symbol<void(void*)>(filename, deleteFunctionName);
         }
     }
 
     auto generatorFunctionName = parameters.getString("generator_function");
-    generatorFunction = boost::dll::import<real(void*, int, int, int, int, void*)>
+    generatorFunction = boost::dll::import_symbol<real(void*, int, int, int, int, void*)>
         (filename, generatorFunctionName);
 }
 
